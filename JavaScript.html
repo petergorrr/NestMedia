@@ -1,0 +1,615 @@
+<script>
+  let currentPagePosts = 1;
+  let currentPageAnalysis = 1;
+  const rowsPerPage = 10;
+  let postsData = [];
+  let filteredPostsData = [];
+  let analysisData = [];
+  let filteredAnalysisData = [];
+
+  let sentimentCurrentPage = 1;
+  const sentimentRowsPerPage = 10;
+  let sentimentData = [];
+  let chartInstances = {};
+
+  function showSection(sectionId) {
+      console.log("Showing section:", sectionId);
+      const sections = document.querySelectorAll('.section');
+      sections.forEach(section => section.classList.add('hidden'));
+      document.getElementById(sectionId).classList.remove('hidden');
+      const headerIcon = document.getElementById('header-icon');
+      const headerText = document.getElementById('header-text');
+      if (sectionId === 'postAnalytics') {
+          headerIcon.className = 'fas fa-chart-pie';
+          headerText.textContent = 'NestMedia';
+          fetchPosts();
+      } else if (sectionId === 'analysisSection') {
+          headerIcon.className = 'fas fa-chart-line';
+          headerText.textContent = 'Analysis Dashboard';
+      }
+  }
+
+  function loadAnalyticsData() {
+    google.script.run.withSuccessHandler(updateCharts).getAnalyticsData();
+  }
+
+  function updateCharts(data) {
+    if (data.weekly) {
+      createEngagementChart('weeklyEngagementChart', 'Weekly Engagement', data.weekly);
+    }
+    if (data.monthly) {
+      createEngagementChart('monthlyEngagementChart', 'Monthly Engagement', data.monthly);
+    }
+  }
+
+  function createEngagementChart(canvasId, title, data) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: data.labels,
+        datasets: [
+          { label: 'Likes', data: data.likes, backgroundColor: 'rgba(255, 99, 132, 0.8)' },
+          { label: 'Comments', data: data.comments, backgroundColor: 'rgba(54, 162, 235, 0.8)' },
+          { label: 'Shares', data: data.shares, backgroundColor: 'rgba(75, 192, 192, 0.8)' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: title },
+        },
+        scales: {
+          x: { stacked: true },
+          y: { stacked: true }
+        }
+      }
+    });
+  }
+
+  function fetchPosts() {
+    console.log("Fetching posts...");
+    google.script.run.withSuccessHandler(function(data) {
+      console.log("Data received:", data);
+      postsData = data; // Assuming data is already without header row
+      filteredPostsData = postsData; // Initialize filtered data
+      console.log("Total rows fetched:", postsData.length);
+      displayPosts();
+    }).withFailureHandler(function(error) {
+      console.error("Error fetching posts:", error);
+    }).getPostData();
+  }
+
+  function updatePostsPaginationControls() {
+      document.getElementById('pageNumberPosts').textContent = `Page ${currentPagePosts}`;
+      document.getElementById('prevPagePosts').disabled = currentPagePosts === 1;
+      document.getElementById('nextPagePosts').disabled = (currentPagePosts * rowsPerPage) >= filteredPostsData.length;
+      document.getElementById('postsPagination').classList.remove('hidden');
+  }
+
+  function updateAnalysisPaginationControls() {
+      document.getElementById('pageNumberAnalysis').textContent = `Page ${currentPageAnalysis}`;
+      document.getElementById('prevPageAnalysis').disabled = currentPageAnalysis === 1;
+      document.getElementById('nextPageAnalysis').disabled = (currentPageAnalysis * rowsPerPage) >= filteredAnalysisData.length;
+      document.getElementById('analysisPagination').classList.remove('hidden');
+  }
+
+  function displayPosts() {
+      const tbody = document.getElementById('postsTable').getElementsByTagName('tbody')[0];
+      tbody.innerHTML = '';
+      const start = (currentPagePosts - 1) * rowsPerPage;
+      const end = Math.min(start + rowsPerPage, filteredPostsData.length);
+      console.log("Displaying rows from", start + 1, "to", end);
+      const paginatedPosts = filteredPostsData.slice(start, end);
+      paginatedPosts.forEach((row, index) => {
+          const tr = document.createElement('tr');
+          const postIdCell = document.createElement('td');
+          postIdCell.textContent = start + index + 1;
+          tr.appendChild(postIdCell);
+          row.forEach((cell, cellIndex) => {
+              if (cellIndex > 0) {
+                  const td = document.createElement('td');
+                  td.textContent = cell;
+                  tr.appendChild(td);
+              }
+          });
+          tbody.appendChild(tr);
+      });
+      updatePostsPaginationControls();
+  }
+
+  function displayAnalysis() {
+      const tbody = document.getElementById('analysisTable').getElementsByTagName('tbody')[0];
+      tbody.innerHTML = '';
+      const start = (currentPageAnalysis - 1) * rowsPerPage;
+      const end = Math.min(start + rowsPerPage, filteredAnalysisData.length);
+      console.log("Displaying analysis rows from", start, "to", end);
+      const paginatedAnalysis = filteredAnalysisData.slice(start, end);
+      paginatedAnalysis.forEach((row, index) => {
+          const tr = document.createElement('tr');
+          row.forEach((cell, cellIndex) => {
+              const td = document.createElement('td');
+              if (cellIndex === 8) {
+                  highlightKeywords(td, cell);
+              } else if (cellIndex === 9) {
+                  td.textContent = cell;
+                  highlightSentimentScore(td, cell);
+              } else {
+                  td.textContent = cell;
+              }
+              tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+      });
+      updateAnalysisPaginationControls();
+  }
+
+  function prevPagePosts() {
+      if (currentPagePosts > 1) {
+          currentPagePosts--;
+          displayPosts();
+      }
+  }
+
+  function nextPagePosts() {
+      if ((currentPagePosts * rowsPerPage) < filteredPostsData.length) {
+          currentPagePosts++;
+          displayPosts();
+      }
+  }
+
+  function prevPageAnalysis() {
+      if (currentPageAnalysis > 1) {
+          currentPageAnalysis--;
+          displayAnalysis();
+      }
+  }
+
+  function nextPageAnalysis() {
+      if ((currentPageAnalysis * rowsPerPage) < filteredAnalysisData.length) {
+          currentPageAnalysis++;
+          displayAnalysis();
+      }
+  }
+
+  function highlightKeywords(td, keywords) {
+    const keywordsArray = keywords.split(', ');
+    keywordsArray.forEach(keyword => {
+      const span = document.createElement('span');
+      span.textContent = keyword;
+      span.className = 'highlight-keyword';
+      span.style.backgroundColor = getRandomColor();
+      td.appendChild(span);
+    });
+  }
+
+  function highlightSentimentScore(td, score) {
+    const sentimentScore = parseFloat(score);
+    if (sentimentScore >= 0.7) {
+      td.style.backgroundColor = '#34A853';
+      td.style.color = 'white';
+    } else if (sentimentScore >= 0.4) {
+      td.style.backgroundColor = '#FBBC04';
+      td.style.color = '#333333';
+    } else {
+      td.style.backgroundColor = '#EA4335';
+      td.style.color = 'white';
+    }
+  }
+
+  function getRandomColor() {
+    const colors = [
+  '#EF9A9A',  // Muted Red
+  '#90CAF9',  // Muted Blue
+  '#A5D6A7',  // Muted Green
+  '#FFF59D',  // Muted Yellow
+  '#CE93D8',  // Muted Purple
+  '#FFCC80',  // Muted Orange
+  '#80CBC4',  // Muted Teal
+  '#F48FB1',  // Muted Pink
+  '#81D4FA',  // Muted Cyan
+  '#FFE082'   // Muted Amber
+  ];
+    return colors[Math.floor(Math.random() * colors.length)];
+  }
+
+  function updatePaginationControls(totalRows) {
+    document.getElementById('pageNumber').textContent = `Page ${currentPage}`;
+    document.getElementById('prevPage').disabled = currentPage === 1;
+    document.getElementById('nextPage').disabled = (currentPage * rowsPerPage) >= totalRows;
+    document.querySelector('.pagination').classList.remove('hidden');
+  }
+
+  function displaySentimentResults() {
+    const tbody = document.getElementById('sentimentTable').getElementsByTagName('tbody')[0];
+    tbody.innerHTML = '';
+    const start = (sentimentCurrentPage - 1) * sentimentRowsPerPage;
+    const end = Math.min(start + sentimentRowsPerPage, sentimentData.length);
+    console.log("Displaying sentiment rows from", start, "to", end);
+
+    const paginatedSentiment = sentimentData.slice(start, end);
+    paginatedSentiment.forEach(row => {
+      const tr = document.createElement('tr');
+      const contentCell = document.createElement('td');
+      const scoreCell = document.createElement('td');
+      const recommendationCell = document.createElement('td');
+
+      contentCell.textContent = row[0];
+      scoreCell.textContent = row[1];
+      recommendationCell.textContent = getRecommendation(row[1]);
+
+      if (row[1] >= 0.7) scoreCell.classList.add('good-score');
+      else if (row[1] <= 0.3) scoreCell.classList.add('bad-score');
+
+      tr.appendChild(contentCell);
+      tr.appendChild(scoreCell);
+      tr.appendChild(recommendationCell);
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('sentimentPageNumber').textContent = `Page ${sentimentCurrentPage}`;
+    document.getElementById('sentimentPrevPage').disabled = sentimentCurrentPage === 1;
+    document.getElementById('sentimentNextPage').disabled = end >= sentimentData.length;
+    document.querySelector('.pagination').classList.remove('hidden');
+  }
+
+  function prevPage() {
+    if (currentPage > 1) {
+      currentPage--;
+      displayCurrentPage();
+    }
+  }
+
+  function nextPage() {
+    if ((currentPage * rowsPerPage) < (document.getElementById('analysisSection').classList.contains('hidden') ? filteredPostsData.length : filteredAnalysisData.length)) {
+      currentPage++;
+      displayCurrentPage();
+    }
+  }
+
+  function displayCurrentPage() {
+    if (document.getElementById('analysisSection').classList.contains('hidden')) {
+      displayPosts();
+    } else {
+      displayAnalysis();
+    }
+  }
+
+  function prevSentimentPage() {
+    if (sentimentCurrentPage > 1) {
+      sentimentCurrentPage--;
+      displaySentimentResults();
+    }
+  }
+
+  function nextSentimentPage() {
+    if ((sentimentCurrentPage * sentimentRowsPerPage) < sentimentData.length) {
+      sentimentCurrentPage++;
+      displaySentimentResults();
+    }
+  }
+
+  function closeEnlarged() {
+    const enlargedCard = document.querySelector('.enlarged');
+    if (enlargedCard) {
+      enlargedCard.classList.remove('enlarged');
+    }
+    document.querySelector('.overlay').style.display = 'none';
+  }
+
+  function applyFilter(button) {
+    const platform = document.getElementById('platformFilter').value;
+    button.classList.toggle('clicked');
+    filteredPostsData = postsData.filter(row => platform === 'all' || row[1] === platform);
+    currentPage = 1;
+    displayPosts();
+  }
+
+  function applyAnalysisFilter(button) {
+    const platform = document.getElementById('analysisPlatformFilter').value;
+    const sentiment = document.getElementById('sentimentAnalysisFilter').value;
+
+    button.classList.toggle('clicked');
+    filteredAnalysisData = analysisData.filter(row => {
+      const platformMatch = platform === 'all' || row[1] === platform;
+      const sentimentScore = parseFloat(row[9]);
+      let sentimentMatch = false;
+
+      if (sentiment === 'all') {
+        sentimentMatch = true;
+      } else if (sentiment === 'high' && sentimentScore >= 0.7) {
+        sentimentMatch = true;
+      } else if (sentiment === 'medium' && sentimentScore >= 0.4 && sentimentScore < 0.7) {
+        sentimentMatch = true;
+      } else if (sentiment === 'low' && sentimentScore < 0.4) {
+        sentimentMatch = true;
+      }
+
+      return platformMatch && sentimentMatch;
+    });
+
+    currentPage = 1;
+    displayAnalysis();
+  }
+
+  function performAnalysis(button) {
+      console.log("Performing analysis...");
+      button.classList.toggle('clicked');
+      fetchKeywordExtractedData();
+  }
+  
+  function fetchKeywordExtractedData() {
+      console.log("Fetching keyword extracted data...");
+      google.script.run.withSuccessHandler(function(data) {
+          console.log("Keyword data received:", data);
+          analysisData = data; // Assuming data is already without header row
+          filteredAnalysisData = analysisData; // Initialize filtered data
+          displayAnalysis();
+          document.getElementById('analysisSection').classList.remove('hidden');
+          
+          // Load the dashboard data after displaying the analysis
+          google.script.run.withSuccessHandler(updateDashboard).getOverallInsights();
+      }).withFailureHandler(function(error) {
+          console.error("Error fetching keyword data:", error);
+      }).getKeywordExtractedData();
+  }
+
+  function loadDashboardData() {
+    google.script.run.withSuccessHandler(updateDashboard).getOverallInsights();
+  }
+
+  function updateDashboard(data) {
+    console.log(data)
+    createEngagementByPlatformChart(data.engagementByPlatform);
+    createEngagementOverviewChart(data.engagementOverview);
+    createKeywordDistributionChart(data.keywordDistribution);
+    createAudienceGrowthChart(data.audienceGrowth);
+  }
+
+  function createEngagementByPlatformChart(data) {
+      const ctx = document.getElementById('engagementByPlatformChart').getContext('2d');
+      
+      // Check if there's an existing chart and destroy it
+      if (chartInstances.engagementByPlatform) {
+          chartInstances.engagementByPlatform.destroy();
+      }
+      
+      // Create new chart
+      chartInstances.engagementByPlatform = new Chart(ctx, {
+          type: 'bar',
+          data: {
+              labels: data.labels,
+              datasets: [{ label: 'Engagement', data: data.values, backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'] }]
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: { y: { beginAtZero: true } }
+          }
+      });
+  }
+
+  function createEngagementOverviewChart(data) {
+      const ctx = document.getElementById('engagementOverviewChart').getContext('2d');
+
+      // Check if there's an existing chart and destroy it
+      if (chartInstances.engagementOverview) {
+          chartInstances.engagementOverview.destroy();
+      }
+
+      chartInstances.engagementOverview = new Chart(ctx, {
+          type: 'bar',
+          data: {
+              labels: data.labels,
+              datasets: [
+                  { label: 'Likes', data: data.likes, backgroundColor: 'rgba(255, 99, 132, 0.8)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1 },
+                  { label: 'Comments', data: data.comments, backgroundColor: 'rgba(54, 162, 235, 0.8)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 },
+                  { label: 'Shares', data: data.shares, backgroundColor: 'rgba(75, 192, 192, 0.8)', borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 1 }
+              ]
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                  x: {
+                      stacked: true,
+                      ticks: { maxRotation: 90, minRotation: 90, autoSkip: true, maxTicksLimit: 10 },
+                      title: { display: true, text: 'Date' }
+                  },
+                  y: {
+                      stacked: true,
+                      beginAtZero: true,
+                      title: { display: true, text: 'Count' }
+                  }
+              },
+              plugins: {
+                  legend: { position: 'top' },
+                  title: { display: true, text: 'Engagement Overview' },
+                  tooltip: { mode: 'index', intersect: false }
+              },
+              barPercentage: 1,
+              categoryPercentage: 0.8
+          }
+      });
+  }
+
+
+  function createAudienceDemographicsChart(data) {
+    const ctx = document.getElementById('audienceDemographicsChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: data.labels,
+        datasets: [{ data: data.values, backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'] }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
+  }
+
+  function createKeywordDistributionChart(data) {
+    const ctx = document.getElementById('keywordDistributionChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          data: data.values,
+          backgroundColor: [
+            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+            '#FF9F40', '#FF6384', '#C9CBCF', '#7BC225', '#FFA1B5'
+          ]
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                // Customize label text here if needed
+                return context.label + ': ' + context.raw + '%'; // Example format
+              }
+            },
+            bodyFont: {
+              size: 20 // Adjust font size for the tooltip label
+            },
+            titleFont: {
+              size: 20 // Adjust font size for the tooltip title
+            }
+          },
+          legend: {
+            labels: {
+              font: {
+                size: 16 // Adjust font size for the legend labels
+              }
+            }
+          }
+        },
+        plugins: {
+          tooltip: {
+            bodyFont: {
+              size: 14 // Adjust the font size of tooltip body
+            }
+          }
+        }
+      }
+    });
+  }
+
+
+  function createAudienceGrowthChart(data) {
+    const ctx = document.getElementById('audienceGrowthChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: 'New Followers',
+          data: data.values,
+          borderColor: 'rgb(75, 192, 192)',
+          fill: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'New Followers' }
+          },
+          x: {
+            title: { display: true, text: 'Date' }
+          }
+        }
+      }
+    });
+  }
+
+  let audienceGrowthData = null;
+
+  function preloadAudienceGrowthData() {
+    google.script.run.withSuccessHandler(function(data) {
+      audienceGrowthData = data;
+    }).withFailureHandler(function(error) {
+      console.error('Error fetching audience growth data:', error);
+    }).calculateAudienceGrowth();
+  }
+
+  function toggleAudienceGrowth(metricContainer) {
+    const summaryElement = metricContainer.querySelector('#audienceGrowthSummary');
+    const chartContainer = metricContainer.querySelector('#audienceGrowthChartContainer');
+
+    if (summaryElement.style.display !== 'none') {
+      summaryElement.style.display = 'none';
+      chartContainer.style.display = 'block';
+
+      if (!chartContainer.dataset.chartInitialized && audienceGrowthData) {
+        createAudienceGrowthChart(chartContainer.querySelector('#audienceGrowthChart'), audienceGrowthData);
+        chartContainer.dataset.chartInitialized = 'true';
+      } else if (!chartContainer.dataset.chartInitialized) {
+        chartContainer.innerHTML = 'Error loading chart. Please try again.';
+      }
+    } else {
+      summaryElement.style.display = 'flex';
+      chartContainer.style.display = 'none';
+    }
+  }
+
+
+  function initializeDashboard() {
+    const metricContainers = document.querySelectorAll('.metric-container');
+    const expandedMetric = document.getElementById('expandedMetric');
+    const minimizeButton = document.getElementById('minimizeButton');
+    const expandedContent = document.getElementById('expandedContent');
+
+    metricContainers.forEach(container => {
+      container.addEventListener('click', () => {
+        const metricType = container.dataset.metric;
+        const chartCanvas = container.querySelector('canvas');
+        
+        // Clone the chart and append it to the expanded content
+        expandedContent.innerHTML = '';
+        const clonedCanvas = chartCanvas.cloneNode(true);
+        clonedCanvas.id = 'expandedChart';
+        expandedContent.appendChild(clonedCanvas);
+        
+        // Show the expanded metric
+        expandedMetric.style.display = 'block';
+        
+        // Redraw the chart in the expanded view
+        const chart = Chart.getChart(chartCanvas);
+        new Chart(clonedCanvas.getContext('2d'), chart.config);
+      });
+    });
+
+    minimizeButton.addEventListener('click', () => {
+      expandedMetric.style.display = 'none';
+    });
+  }
+
+   function toggleMetric(element) {
+    element.classList.toggle('expanded');
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const audienceGrowthContainer = document.querySelector('.metric-container[data-metric="audienceGrowth"]');
+    if (audienceGrowthContainer) {
+      audienceGrowthContainer.addEventListener('click', function() {
+        toggleAudienceGrowth(this);
+      });
+    }
+  });
+
+  window.onload = function() {
+    showSection('postAnalytics');
+    loadDashboardData();
+    initializeDashboard();
+    preloadAudienceGrowthData();
+  };
+</script>

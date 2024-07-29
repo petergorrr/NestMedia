@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Social Media Management System</title>
+  <?!= include('Stylesheet'); ?>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+
+<body>
+  <div class="sidebar">
+    <div class="sidebar-icon" onclick="showSection('postAnalytics')">
+      <i class="fas fa-chart-pie"></i><span class="tooltip">Post Analytics</span>
+    </div>
+    <div class="sidebar-footer">
+      <p>Copyright &copy; Borneo Coders</p>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <header>
+      <div class="header-title section-title">
+        <i id="header-icon" class="fas fa-chart-line"></i>
+        <div>
+          <h1 id="header-text" class="analytics-header">NestMedia</h1>
+          <h2 id="header-subtitle" class="analytics-subheader">- A Google-powered Social Media Management and Analytics
+            System - </h2>
+        </div>
+      </div>
+    </header>
+
+    <div id="postAnalytics" class="section">
+      <div class="filter-container">
+        <div>
+          <label for="platformFilter">Platform</label>
+          <select id="platformFilter">
+            <option value="all">All</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Twitter">Twitter</option>
+            <option value="LinkedIn">LinkedIn</option>
+          </select>
+          <button class="filter-button" onclick="applyFilter(this)">Filter</button>
+        </div>
+        <div class="filter-container-right">
+          <div class="info-notification-container">
+            <div class="info-notification">
+              <i class="fas fa-info-circle"></i>
+              This dataset is taken from Google Sheets
+            </div>
+          </div>
+        </div>
+      </div>
+      <table id="postsTable">
+        <thead>
+          <tr>
+            <th>Post ID</th>
+            <th>Platform</th>
+            <th>Content</th>
+            <th>Schedule Date</th>
+            <th>Status</th>
+            <th>Likes</th>
+            <th>Comments</th>
+            <th>Shares</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="pagination" id="postsPagination">
+          <button id="prevPagePosts" onclick="prevPagePosts()">Previous</button>
+          <span id="pageNumberPosts"></span>
+          <button id="nextPagePosts" onclick="nextPagePosts()">Next</button>
+      </div>
+      <div class="button-container">
+        <button class="analysis-button" onclick="performAnalysis(this)">Perform Analysis</button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div id="analysisSection" class="section hidden">
+      <div class="filter-container">
+        <div>
+          <label for="analysisPlatformFilter">Platform</label>
+          <select id="analysisPlatformFilter">
+            <option value="all">All</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Twitter">Twitter</option>
+            <option value="LinkedIn">LinkedIn</option>
+          </select>
+        </div>
+        <div>
+          <label for="sentimentAnalysisFilter">Sentiment</label>
+          <select id="sentimentAnalysisFilter">
+            <option value="all">All</option>
+            <option value="high">High (>= 0.7)</option>
+            <option value="medium">Medium (0.4 - 0.69)</option>
+            <option value="low">Low (< 0.4)</option>
+          </select>
+        </div>
+        <button class="filter-button" onclick="applyAnalysisFilter(this)">Filter</button>
+      </div>
+      <table id="analysisTable">
+        <thead>
+          <tr>
+            <th>Post ID</th>
+            <th>Platform</th>
+            <th>Content</th>
+            <th>Schedule Date</th>
+            <th>Status</th>
+            <th>Likes</th>
+            <th>Comments</th>
+            <th>Shares</th>
+            <th>Keywords</th>
+            <th>Sentiment Score</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="pagination" id="analysisPagination">
+          <button id="prevPageAnalysis" onclick="prevPageAnalysis()">Previous</button>
+          <span id="pageNumberAnalysis"></span>
+          <button id="nextPageAnalysis" onclick="nextPageAnalysis()">Next</button>
+      </div>
+      <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+          <span class="legend-square high-sentiment"></span>
+          <span>High Sentiment (>= 0.7)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-square medium-sentiment"></span>
+          <span>Medium Sentiment (0.4 - 0.69)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-square low-sentiment"></span>
+          <span>Low Sentiment (< 0.4)</span>
+        </div>
+        <p class="sentiment-description">
+          Sentiment scores indicate the perceived positivity or negativity of social media posts. A high sentiment score (>= 0.7) reflects a strongly positive reaction from users, suggesting they are very satisfied or happy with the content. Medium sentiment (0.4 - 0.69) indicates a mixed or neutral reaction, where users might have both positive and negative opinions. Low sentiment (< 0.4) suggests a predominantly negative reaction, indicating dissatisfaction or negative feedback from users.
+        </p>
+      </div>
+
+
+      <!-- Analytics Dashboard within Analysis Section -->
+      <div class="dashboard-grid">
+        <div class="metric-container" data-metric="engagementOverview">
+          <h3>Engagement Overview</h3>
+          <div class="metric-content">
+            <canvas id="engagementOverviewChart"></canvas>
+          </div>
+        </div>
+        <div class="metric-container" data-metric="keywordDistribution">
+          <h3>Keyword Distribution</h3>
+          <div class="metric-content">
+            <canvas id="keywordDistributionChart"></canvas>
+          </div>
+        </div>
+        <div class="metric-container" data-metric="audienceGrowth" onclick="toggleAudienceGrowth(this)">
+          <h3>Audience Growth</h3>
+          <div class="metric-content">
+            <div id="audienceGrowthSummary">
+              <div id="growthNumber">1,234</div>
+              <div id="growthPercentage">↑ 25%</div>
+              <div id="growthPeriod">vs previous 30 days</div>
+            </div>
+            <div id="audienceGrowthChartContainer" style="display: none;">
+              <canvas id="audienceGrowthChart"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="metric-container" data-metric="engagementByPlatform">
+          <h3>Engagement by Platform</h3>
+          <div class="metric-content">
+            <canvas id="engagementByPlatformChart"></canvas>
+          </div>
+        </div>
+        <div id="expandedMetric" class="expanded-metric">
+          <button id="minimizeButton" class="minimize-button">Minimize</button>
+          <div id="expandedContent"></div>
+        </div>
+      </div>
+
+      <div class="ai-container">
+        <h3>Comments from NestAI</h3>
+        <div class="ai-card">
+          <p>Your business posters attract the most traffic from Facebook 📈, but engagement from LinkedIn is stronger
+            💼. The favorite keywords among your audience seem to be 'productive' 💪, 'innovative' 🚀, and 'exclusive'
+            🎯. To boost engagement, consider creating more content around these themes. Additionally, posting more
+            about your upcoming features can build anticipation and excitement 🎉. Share user-generated content to
+            increase engagement 🤝 and use more images and videos to make your posts more engaging 📸. Create polls and
+            surveys to interact with your audience 📊 and highlight customer testimonials to build trust 👍.</p>
+        </div>
+      </div>
+    </div>
+    <div class="overlay" onclick="closeEnlarged()"></div>
+    <?!= include('JavaScript'); ?>
+  </div>
+</body>
+
+</html>
